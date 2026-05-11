@@ -45,7 +45,6 @@ trading_client = TradingClient(api_key, secret_key, paper=False)
 if os.path.isdir("static"):  # Static frontend
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-activities = trading_client.get_act(activity_types=["CSD", "CSW"])  # Get total cash contributions
 initial_capital = 6285
 
 
