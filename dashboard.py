@@ -11,6 +11,7 @@ from alpaca.trading.requests import GetPortfolioHistoryRequest
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from io import StringIO
 
 tickers = ['AMT',  # American Tower      Sector: Real Estate
            'BRK-B',  # Berkshire Hathaway  Sector: Financials
@@ -40,12 +41,15 @@ app = FastAPI()
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
+csv_string = os.getenv("DEPOSITS_CSV")
 trading_client = TradingClient(api_key, secret_key, paper=False)
 
 if os.path.isdir("static"):  # Static frontend
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-initial_capital = 6285
+deposits = pd.read_csv(StringIO(csv_string))
+deposits["amount"] = deposits["amount"].astype(float)
+total_deposits = deposits["amount"].sum()
 
 
 def safe_float(x):
@@ -90,8 +94,8 @@ async def get_portfolio():
     # PnL Metrics
     pnl_daily = equity - last_equity  # Today PnL
     daily_return_pct = (pnl_daily / last_equity) * 100 if last_equity != 0 else 0  # PnL in %
-    cum_return = equity - initial_capital  # Cumulative return
-    cum_percent_return = (cum_return / initial_capital) * 100  # Cumulative return in %
+    cum_return = equity - total_deposits  # Cumulative return
+    cum_percent_return = (cum_return / total_deposits) * 100  # Cumulative return in %
 
     positions_data = sorted(
         [
