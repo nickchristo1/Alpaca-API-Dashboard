@@ -51,8 +51,6 @@ deposits = pd.read_csv(StringIO(csv_string))
 deposits["amount"] = deposits["amount"].astype(float)
 total_deposits = deposits["amount"].sum()
 
-print(total_deposits)
-
 
 def safe_float(x):
     if x is None:
