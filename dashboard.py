@@ -41,7 +41,7 @@ app = FastAPI()
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
-csv_string = os.getenv("DEPOSITS_CSV")
+csv_string = os.getenv("DEPOSITS_CSV").replace("|", "\n")
 trading_client = TradingClient(api_key, secret_key, paper=False)
 
 if os.path.isdir("static"):  # Static frontend
@@ -50,6 +50,8 @@ if os.path.isdir("static"):  # Static frontend
 deposits = pd.read_csv(StringIO(csv_string))
 deposits["amount"] = deposits["amount"].astype(float)
 total_deposits = deposits["amount"].sum()
+
+print(total_deposits)
 
 
 def safe_float(x):
