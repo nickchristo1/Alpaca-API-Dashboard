@@ -3,6 +3,5 @@ pandas
 yfinance
 alpaca-py
 fastapi
-gunicorn
 uvicorn
 python-dotenv
