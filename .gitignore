@@ -1,0 +1,12 @@
+# created by virtualenv automatically
+venv/
+.venv/
+__pycache__/
+.idea/
+*.pyc
+bin
+lib
+share
+pyvenv.cfg
+.DS_store
+.env

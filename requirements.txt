@@ -1,0 +1,10 @@
+numpy
+pandas
+yfinance
+matplotlib
+scipy
+alpaca-py
+tabulate
+fastapi
+uvicorn
+python-dotenv

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Auto-Rebalance MVO Portfolio Dashboard</title>
+
+    <style>
+        body {
+            font-family: -apple-system, Times;
+            margin: 15px;
+            background: #0d1117;
+            color: white;
+        }
+
+        h2 {
+            margin-bottom: 15px;
+        }
+
+        .card {
+            background: #161b22;
+            padding: 16px;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 0 8px rgba(0,0,0,.3);
+        }
+
+        .label {
+            color: #8b949e;
+            font-size: 12px;
+        }
+
+        .value {
+            font-size: 24px;
+            margin-top: 4px;
+            font-weight: bold;
+        }
+
+        .green { color: #2ecc71; }
+        .red { color: #ff5c5c; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 8px;
+            font-size: 13px;
+            text-align: left;
+            border-bottom: 1px solid #30363d;
+        }
+
+        #updated {
+            margin-top: 10px;
+            font-size: 11px;
+            color: gray;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-top: 12px;
+        }
+
+        .analytics-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .analytics-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #58a6ff;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .metric-name {
+            color: #8b949e;
+        }
+
+        .metric-value {
+            font-weight: 600;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 800px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .top-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 800px) {
+            .top-metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<h2>Weekly Auto-Rebalance MVO Portfolio Dashboard</h2>
+
+<div class="top-metrics">
+
+    <div class="card">
+        <div class="label">Total Equity</div>
+        <div class="value" id="equity">-</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Daily PnL</div>
+        <div class="value" id="pnl">-</div>
+    </div>
+
+    <div class="card">
+        <div class="label">Portfolio Return</div>
+        <div class="value" id="cum_percent_return">-</div>
+    </div>
+
+</div>
+
+<div class="card">
+    <div class="label">1 Month Portfolio Value</div>
+    <canvas id="equityChart"></canvas>
+</div>
+
+<div class="card">
+    <div class="label">Open Positions</div>
+    <table id="positions">
+        <thead>
+            <tr>
+                <th>Symbol</th>
+                <th>Quantity</th>
+                <th>Market Value</th>
+                <th>Weight</th>
+                <th>Total P/L</th>
+                <th>% Return</th>
+                <th>Today</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="label">Analytics (Annualized to 1 Year)</div>
+
+    <div id="analytics" class="analytics-grid"></div>
+</div>
+
+<div id="updated">Last updated: --</div>
+
+<script>
+function money(x) {
+    return "$" + Number(x).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2});
+}
+
+function pct(x) {
+    return (x >= 0 ? "+" : "") + Number(x).toFixed(2) + "%";
+}
+
+let equityChart = null;
+
+async function loadData() {
+    try {
+        let scrollY = window.scrollY;
+
+        const res = await fetch("/api/portfolio");
+        const data = await res.json();
+
+        document.getElementById("equity").innerText = money(data.equity);
+
+        const pnlEl = document.getElementById("pnl");
+
+        const pnlText = `${money(data.pnl_daily)} (${pct(data.daily_return_pct)})`;
+
+        pnlEl.innerText = pnlText;
+        pnlEl.className = "value " + (data.pnl_daily >= 0 ? "green" : "red");
+
+        const retEl = document.getElementById("cum_percent_return");
+
+        const retText = `${money(data.cum_return)} (${pct(data.cum_percent_return)})`;
+
+        retEl.innerText = retText;
+        retEl.className = "value " + (data.cum_percent_return >= 0 ? "green" : "red");
+
+        const tbody = document.querySelector("#positions tbody");
+        tbody.innerHTML = "";
+
+        const history = data.history || [];
+
+        const labels = history.map(x =>
+            new Date(x.timestamp * 1000).toLocaleDateString()
+        );
+
+        const values = history.map(x => x.equity);
+
+        if (equityChart) {
+            equityChart.destroy();
+        }
+
+        const a = data.analytics || {};
+
+        document.getElementById("analytics").innerHTML = `
+            <div class="analytics-box">
+                <div class="analytics-title">Strategy Metrics</div>
+
+                <div class="metric">
+                    <span class="metric-name">Return</span>
+                    <span class="metric-value">
+                        ${(a.strategy_return * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Volatility</span>
+                    <span class="metric-value">
+                    ${(a.strategy_vol * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Sharpe Ratio</span>
+                    <span class="metric-value">
+                        ${a.sharpe.toFixed(2)}
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Max Drawdown</span>
+                    <span class="metric-value">
+                        ${(a.max_drawdown * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">VaR (99%)</span>
+                    <span class="metric-value">
+                        ${(a.var_99 * 100).toFixed(2)}%
+                    </span>
+                </div>
+            </div>
+
+            <div class="analytics-box">
+                <div class="analytics-title">SPY Benchmark</div>
+
+                <div class="metric">
+                    <span class="metric-name">Return</span>
+                    <span class="metric-value">
+                        ${(a.spy_return * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Volatility</span>
+                    <span class="metric-value">
+                        ${(a.spy_vol * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Sharpe Ratio</span>
+                    <span class="metric-value">
+                        ${a.spy_sharpe.toFixed(2)}
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">Max Drawdown</span>
+                    <span class="metric-value">
+                        ${(a.spy_max_drawdown * 100).toFixed(2)}%
+                    </span>
+                </div>
+
+                <div class="metric">
+                    <span class="metric-name">VaR (99%)</span>
+                    <span class="metric-value">
+                        ${(a.spy_var_99 * 100).toFixed(2)}%
+                    </span>
+                </div>
+            </div>
+        `;
+
+    const nonZeroValues = values.filter(v => v > 0);
+
+    const minValue = Math.min(...nonZeroValues);
+    const maxValue = Math.max(...nonZeroValues);
+
+    const yMin = Math.floor(minValue / 200) * 200;
+    const yMax = Math.ceil(maxValue / 200) * 200;
+
+    const ctx = document.getElementById("equityChart").getContext("2d");
+
+    equityChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Equity",
+                data: values,
+                tension: 0.25
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    min: yMin,
+                    max: yMax
+                }
+            }
+        }
+    });
+
+    (data.positions || []).forEach(p => {
+        const color = p.unrealized_pl >= 0 ? "green" : "red";
+        const todayColor = p.today_pl >= 0 ? "green" : "red";
+
+        const row = `
+            <tr>
+                <td>${p.symbol}</td>
+                <td>${p.qty}</td>
+                <td>${money(p.market_value)}</td>
+                <td>${pct((p.market_value / data.equity) * 100)}</td>
+                <td class="${color}">${money(p.unrealized_pl)}</td>
+                <td class="${color}">${pct(p.return_pct)}</td>
+                <td class="${todayColor}">
+                    ${money(p.today_pl)} (${pct(p.today_return_pct)})
+                </td>
+            </tr>
+        `;
+
+        tbody.innerHTML += row;
+    });
+
+    document.getElementById("updated").innerText =
+        "Last updated: " + new Date().toLocaleTimeString();
+
+    window.scrollTo(0, scrollY);
+
+    } catch (err) {
+        console.log(err);
+    }
+}
+
+loadData();
+setInterval(loadData, 15000);
+</script>
+
+</body>
+</html>
