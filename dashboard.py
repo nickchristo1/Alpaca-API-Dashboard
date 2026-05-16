@@ -48,8 +48,8 @@ if os.path.isdir("static"):  # Static frontend
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
 deposits = pd.read_csv(StringIO(csv_string))
-deposits["amount"] = deposits["amount"].astype(float)
-total_deposits = deposits["amount"].sum()
+deposits = deposits["amount"].astype(float)
+total_deposits = deposits.sum()
 
 
 def safe_float(x):
@@ -88,6 +88,7 @@ async def get_portfolio():
         spy_returns = np.diff(spy_prices) / np.where(spy_prices[:-1] == 0, 1e-8, spy_prices[:-1])
 
     # Account information
+    start_equity = 6284.96
     equity = float(account.equity)  # Total assets summed
     last_equity = float(account.last_equity)  # Yesterday's final summed assets
 
@@ -95,7 +96,8 @@ async def get_portfolio():
     pnl_daily = equity - last_equity  # Today PnL
     daily_return_pct = (pnl_daily / last_equity) * 100 if last_equity != 0 else 0  # PnL in %
     cum_return = equity - total_deposits  # Cumulative return
-    cum_percent_return = (cum_return / total_deposits) * 100  # Cumulative return in %
+    weekly_ret_seq = equity / (start_equity + deposits) - 1
+    time_weighted_return = (1 + weekly_ret_seq).cumprod() - 1  # Cumulative return in %
 
     positions_data = sorted(
         [
@@ -215,7 +217,7 @@ async def get_portfolio():
         "pnl_daily": equity - last_equity,
         "daily_return_pct": daily_return_pct,
         "cum_return": cum_return,
-        "cum_percent_return": cum_percent_return,
+        "time_weighted_return": time_weighted_return,
         "positions": positions_data,
         "history": chart_data,
         "analytics": analytics
