@@ -96,8 +96,9 @@ async def get_portfolio():
     pnl_daily = equity - last_equity  # Today PnL
     daily_return_pct = (pnl_daily / last_equity) * 100 if last_equity != 0 else 0  # PnL in %
     cum_return = equity - total_deposits  # Cumulative return
-    weekly_ret_seq = equity / (start_equity + deposits) - 1
-    time_weighted_return = (1 + weekly_ret_seq).cumprod() - 1  # Cumulative return in %
+    # weekly_ret_seq = equity / (start_equity + deposits) - 1  # Want to make TWR eventually **NEED TO FIX
+    # time_weighted_return = (1 + weekly_ret_seq).cumprod() - 1  # Cumulative return in %
+    portfolio_return_pct = (cum_return/total_deposits)*100
 
     positions_data = sorted(
         [
@@ -217,7 +218,8 @@ async def get_portfolio():
         "pnl_daily": equity - last_equity,
         "daily_return_pct": daily_return_pct,
         "cum_return": cum_return,
-        "time_weighted_return": time_weighted_return,
+        # "time_weighted_return": time_weighted_return,
+        "portfolio_return_pct": portfolio_return_pct,
         "positions": positions_data,
         "history": chart_data,
         "analytics": analytics
