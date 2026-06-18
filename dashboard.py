@@ -70,7 +70,7 @@ async def get_portfolio():
     positions = trading_client.get_all_positions()
 
     history_request = GetPortfolioHistoryRequest(
-        period="2026-04-29",
+        start="2026-04-29",
         end=date.today(),
         timeframe="1D",
         cashflow_types="ALL"
