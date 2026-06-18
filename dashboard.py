@@ -11,7 +11,7 @@ from alpaca.trading.requests import GetPortfolioHistoryRequest
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from io import StringIO
+from datetime import date
 
 tickers = ['AMT',  # American Tower      Sector: Real Estate
            'BRK-B',  # Berkshire Hathaway  Sector: Financials
@@ -41,15 +41,11 @@ app = FastAPI()
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
-csv_string = os.getenv("DEPOSITS_CSV").replace("|", "\n")
 trading_client = TradingClient(api_key, secret_key, paper=False)
 
 if os.path.isdir("static"):  # Static frontend
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
-deposits = pd.read_csv(StringIO(csv_string))
-deposits = deposits["amount"].astype(float)
-total_deposits = deposits.sum()
 
 
 def safe_float(x):
@@ -74,10 +70,29 @@ async def get_portfolio():
     positions = trading_client.get_all_positions()
 
     history_request = GetPortfolioHistoryRequest(
-        period="1M",
-        timeframe="1D"
+        period="2026-04-29",
+        end=date.today(),
+        timeframe="1D",
+        cashflow_types="ALL"
     )
     history = trading_client.get_portfolio_history(history_request)
+
+    # Get cash flows form the portfolio for dynamic return calculation automatically
+    portfolio = pd.DataFrame({
+        "date": pd.to_datetime(history.timestamp, unit="s").normalize(),
+        "equity": history.equity,
+    })
+
+    portfolio["deposit"] = history.cashflow.get("CSD", [0] * len(portfolio))
+    portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
+    portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
+    portfolio["begin_equity"] = portfolio["equity"].shift(1)
+
+    # Calculate Returns
+    portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
+                        / portfolio["begin_equity"])
+
+    twr = (1 + portfolio["r_t"].dropna()).prod() - 1
 
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
     if spy is None or len(spy) < 2:
@@ -88,17 +103,13 @@ async def get_portfolio():
         spy_returns = np.diff(spy_prices) / np.where(spy_prices[:-1] == 0, 1e-8, spy_prices[:-1])
 
     # Account information
-    start_equity = 6284.96
     equity = float(account.equity)  # Total assets summed
     last_equity = float(account.last_equity)  # Yesterday's final summed assets
 
     # PnL Metrics
     pnl_daily = equity - last_equity  # Today PnL
     daily_return_pct = (pnl_daily / last_equity) * 100 if last_equity != 0 else 0  # PnL in %
-    cum_return = equity - total_deposits  # Cumulative return
-    # weekly_ret_seq = equity / (start_equity + deposits) - 1  # Want to make TWR eventually **NEED TO FIX
-    # time_weighted_return = (1 + weekly_ret_seq).cumprod() - 1  # Cumulative return in %
-    portfolio_return_pct = (cum_return/total_deposits)*100
+    cum_return = equity - portfolio["deposit"].sum()  # Cumulative return
 
     positions_data = sorted(
         [
@@ -131,10 +142,10 @@ async def get_portfolio():
 
     chart_data = [
         {
-            "timestamp": history.timestamp[i],
-            "equity": float(history.equity[i])
+            "timestamp": history.timestamp[len(history.equity)-22+i],
+            "equity": float(history.equity[len(history.equity)-22+i])
         }
-        for i in range(len(history.equity))
+        for i in range(22)
     ]
 
     # Advanced Analytics: 1.) Find historical portfolio performance
@@ -218,8 +229,7 @@ async def get_portfolio():
         "pnl_daily": equity - last_equity,
         "daily_return_pct": daily_return_pct,
         "cum_return": cum_return,
-        # "time_weighted_return": time_weighted_return,
-        "portfolio_return_pct": portfolio_return_pct,
+        "time_weighted_return": twr,
         "positions": positions_data,
         "history": chart_data,
         "analytics": analytics
