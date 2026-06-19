@@ -200,7 +200,7 @@ async function loadData() {
 
         const retEl = document.getElementById("twr");
 
-        const retText = `${money(data.cum_return)} (${pct(data.twr)})`;
+        const retText = `${money(data.cum_return)} (${pct(data.twr*100)})`;
 
         retEl.innerText = retText;
         retEl.className = "value " + (data.twr >= 0 ? "green" : "red");
