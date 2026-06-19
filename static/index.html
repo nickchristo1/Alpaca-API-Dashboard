@@ -198,7 +198,7 @@ async function loadData() {
         pnlEl.innerText = pnlText;
         pnlEl.className = "value " + (data.pnl_daily >= 0 ? "green" : "red");
 
-        const retEl = document.getElementById("data.twr");
+        const retEl = document.getElementById("twr");
 
         const retText = `${money(data.cum_return)} (${pct(data.twr)})`;
 

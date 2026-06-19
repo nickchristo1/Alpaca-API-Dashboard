@@ -228,7 +228,7 @@ async def get_portfolio():
         "pnl_daily": equity - last_equity,
         "daily_return_pct": daily_return_pct,
         "cum_return": cum_return,
-        "time_weighted_return": twr,
+        "twr": twr,
         "positions": positions_data,
         "history": chart_data,
         "analytics": analytics
