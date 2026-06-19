@@ -46,6 +46,31 @@ trading_client = TradingClient(api_key, secret_key, paper=False)
 if os.path.isdir("static"):  # Static frontend
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
+history_request = GetPortfolioHistoryRequest(
+    start="2026-04-29",
+    end=date.today(),
+    timeframe="1D",
+    cashflow_types="ALL"
+)
+history = trading_client.get_portfolio_history(history_request)
+
+# Get cash flows form the portfolio for dynamic return calculation automatically
+portfolio = pd.DataFrame({
+    "date": pd.to_datetime(history.timestamp, unit="s").normalize(),
+    "equity": history.equity,
+})
+
+portfolio["deposit"] = history.cashflow.get("CSD", [0] * len(portfolio))
+portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
+portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
+portfolio["begin_equity"] = portfolio["equity"].shift(1)
+
+# Calculate Returns
+portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
+                    / portfolio["begin_equity"])
+
+twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)
+print(twr, type(twr))
 
 
 def safe_float(x):
@@ -92,7 +117,7 @@ async def get_portfolio():
     portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
                         / portfolio["begin_equity"])
 
-    twr = (1 + portfolio["r_t"].dropna()).prod() - 1
+    twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)
 
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
     if spy is None or len(spy) < 2:
