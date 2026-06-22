@@ -13,23 +13,28 @@ import pandas as pd
 import numpy as np
 from datetime import date
 
-tickers = ['AMT',  # American Tower      Sector: Real Estate
-           'BRK-B',  # Berkshire Hathaway  Sector: Financials
-           'CAT',  # Caterpillar         Sector: Industrials
-           'COST',  # Costco              Sector: Consumer Staples
-           'GE',  # GE Aerospace        Sector: Industrials
-           'HD',  # Home Depot          Sector: Consumer Disc.
-           'JNJ',  # Johnson & Johnson   Sector: Health Care
-           'MSFT',  # Microsoft           Sector: Information Tech
-           'NEE',  # NextEra Energy      Sector: Utilities
-           'NVDA',  # NVIDIA              Sector: Information Tech
-           'PG',  # Proctor & Gamble    Sector: Consumer Staples
-           'PLD',  # Prologis            Sector: Real Estate
-           'SPY',  # S&P 500             Market Index
-           'TSLA',  # Tesla               Sector: Consumer Disc.
-           'UNH',  # UnitedHealth        Sector: Health Care
-           'V',  # Visa                Sector: Financials
-           'XOM']  # ExxonMobil          Sector: Energy
+tickers = ['AGIX',    # KraneShares ETF     Sector: AI ETF
+           'AMT',     # American Tower      Sector: Real Estate
+           'BRK-B',   # Berkshire Hathaway  Sector: Financials
+           'CAT',     # Caterpillar         Sector: Industrials
+           'COST',    # Costco              Sector: Consumer Staples
+           'GE',      # GE Aerospace        Sector: Industrials
+           'GEV',     # GE Vernova          Sector: Industrials
+           'HD',      # Home Depot          Sector: Consumer Disc.
+           'IEX',     # IDEX Corp.          Sector: Industrials
+           'JNJ',     # Johnson & Johnson   Sector: Health Care
+           'MSFT',    # Microsoft           Sector: Information Tech
+           'MU',      # Micron              Sector: Information Tech
+           'NEE',     # NextEra Energy      Sector: Utilities
+           'NVDA',    # NVIDIA              Sector: Information Tech
+           'PG',      # Proctor & Gamble    Sector: Consumer Staples
+           'PLD',     # Prologis            Sector: Real Estate
+           'SPY',     # S&P 500             Market Index
+           'TSLA',    # Tesla               Sector: Consumer Disc.
+           'UNH',     # UnitedHealth        Sector: Health Care
+           'V',       # Visa                Sector: Financials
+           'VTRS',    # Viatris             Sector: Healthcare
+           'XOM']     # ExxonMobil          Sector: Energy
 
 
 # 1.) Set-up and Initialization
@@ -91,8 +96,6 @@ async def get_portfolio():
     portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
                         / portfolio["begin_equity"])
 
-    twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)
-
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
     if spy is None or len(spy) < 2:
         spy_prices = np.array([1.0, 1.0])
@@ -107,8 +110,12 @@ async def get_portfolio():
 
     # PnL Metrics
     pnl_daily = equity - last_equity  # Today PnL
-    daily_return_pct = (pnl_daily / last_equity) * 100 if last_equity != 0 else 0  # PnL in %
+    daily_return = (equity / last_equity) - 1
+    daily_return_pct = daily_return * 100 if last_equity != 0 else 0  # PnL in %
     cum_return = equity - portfolio["deposit"].sum()  # Cumulative return
+
+    twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
+    live_twr = (1 + twr) * (1 + daily_return) - 1
 
     positions_data = sorted(
         [
@@ -225,10 +232,10 @@ async def get_portfolio():
 
     return {
         "equity": equity,
-        "pnl_daily": equity - last_equity,
+        "pnl_daily": pnl_daily,
         "daily_return_pct": daily_return_pct,
         "cum_return": cum_return,
-        "twr": twr,
+        "live_twr": live_twr,
         "positions": positions_data,
         "history": chart_data,
         "analytics": analytics

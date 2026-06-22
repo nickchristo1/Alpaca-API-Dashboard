@@ -10,3 +10,4 @@ share
 pyvenv.cfg
 .DS_store
 .env
+portfolio_history.py

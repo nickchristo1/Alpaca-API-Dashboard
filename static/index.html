@@ -135,7 +135,7 @@
 
     <div class="card">
         <div class="label">Portfolio Return</div>
-        <div class="value" id="twr">-</div>
+        <div class="value" id="live_twr">-</div>
     </div>
 
 </div>
@@ -198,12 +198,12 @@ async function loadData() {
         pnlEl.innerText = pnlText;
         pnlEl.className = "value " + (data.pnl_daily >= 0 ? "green" : "red");
 
-        const retEl = document.getElementById("twr");
+        const retEl = document.getElementById("live_twr");
 
-        const retText = `${money(data.cum_return)} (${pct(data.twr*100)})`;
+        const retText = `${money(data.cum_return)} (${pct(data.live_twr*100)})`;
 
         retEl.innerText = retText;
-        retEl.className = "value " + (data.twr >= 0 ? "green" : "red");
+        retEl.className = "value " + (data.live_twr >= 0 ? "green" : "red");
 
         const tbody = document.querySelector("#positions tbody");
         tbody.innerHTML = "";
