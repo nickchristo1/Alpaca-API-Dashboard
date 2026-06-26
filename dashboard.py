@@ -70,6 +70,7 @@ def root():
 
 @app.get("/api/portfolio")
 async def get_portfolio():
+    # ------------------------- Query Account information from Alpaca API -------------------------------
     account = trading_client.get_account()
     positions = trading_client.get_all_positions()
 
@@ -80,8 +81,9 @@ async def get_portfolio():
         cashflow_types="ALL"
     )
     history = trading_client.get_portfolio_history(history_request)
+    # ----------------------------------------------------------------------------------------------------
 
-    # Get cash flows form the portfolio for dynamic return calculation automatically
+    # ---------- Get cash flows form the portfolio for dynamic return calculation automatically ----------
     portfolio = pd.DataFrame({
         "date": pd.to_datetime(history.timestamp, unit="s").normalize(),
         "equity": history.equity,
@@ -91,12 +93,11 @@ async def get_portfolio():
     portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
     portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
     portfolio["begin_equity"] = portfolio["equity"].shift(1)
-
-    # Calculate Returns
     portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
                         / portfolio["begin_equity"])
 
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
+
     if spy is None or len(spy) < 2:
         spy_prices = np.array([1.0, 1.0])
         spy_returns = np.array([0.0])
@@ -104,19 +105,20 @@ async def get_portfolio():
         spy_prices = spy.to_numpy().flatten()
         spy_returns = np.diff(spy_prices) / np.where(spy_prices[:-1] == 0, 1e-8, spy_prices[:-1])
 
-    # Account information
     equity = float(account.equity)  # Total assets summed
     last_equity = float(account.last_equity)  # Yesterday's final summed assets
 
     # PnL Metrics
-    pnl_daily = equity - last_equity  # Today PnL
-    daily_return = (equity / last_equity) - 1
+    pnl_daily = sum([float(p.unrealized_intraday_pl) for p in positions])
+    daily_return = pnl_daily / last_equity
     daily_return_pct = daily_return * 100 if last_equity != 0 else 0  # PnL in %
     cum_return = equity - portfolio["deposit"].sum()  # Cumulative return
 
     twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
     live_twr = (1 + twr) * (1 + daily_return) - 1
+    # ----------------------------------------------------------------------------------------------------
 
+    # -------------------------------------- Get Position Level Data -------------------------------------
     positions_data = sorted(
         [
             {
@@ -145,7 +147,9 @@ async def get_portfolio():
         key=lambda x: x["unrealized_pl"],
         reverse=True
     )
+    # ----------------------------------------------------------------------------------------------------
 
+    # ---------------------------------- Build the Portfolio Value Chart ---------------------------------
     chart_data = [
         {
             "timestamp": history.timestamp[len(history.equity)-22+i],
@@ -153,8 +157,9 @@ async def get_portfolio():
         }
         for i in range(22)
     ]
+    # ----------------------------------------------------------------------------------------------------
 
-    # Advanced Analytics: 1.) Find historical portfolio performance
+    # ------------------ Advanced Analytics: 1.) Find historical portfolio performance -------------------
     positions_dict = {  # Get a list of active positions
         p.symbol: p
         for p in positions
@@ -183,7 +188,7 @@ async def get_portfolio():
         portfolio_growth = (1 + port_daily_rets).cumprod()  # Find compounded return
         strategy_return = portfolio_growth.iloc[-1] - 1  # Portfolio return over the year
 
-    # Advanced Analytics: 2.) Calculate metrics
+    # --------------------------- Advanced Analytics: 2.) Calculate metrics ----------------------------
     # Drawdown (Strategy)
     running_max = portfolio_growth.cummax()
     drawdown = (portfolio_growth - running_max) / running_max
@@ -216,7 +221,9 @@ async def get_portfolio():
     # VaR
     var_99 = np.percentile(port_daily_rets, 1) if len(port_daily_rets) > 1 else 0.0
     spy_var_99 = np.percentile(spy_returns, 1) if len(spy_returns) > 1 else 0.0
+    # ----------------------------------------------------------------------------------------------------
 
+    # --------------------------------- Return Values for the Dashboard ----------------------------------
     analytics = {
         "max_drawdown": safe_float(max_drawdown),
         "var_99": safe_float(var_99),
