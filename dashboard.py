@@ -75,15 +75,23 @@ async def get_portfolio():
     positions = trading_client.get_all_positions()
 
     history_request = GetPortfolioHistoryRequest(
-        start="2026-04-29",
+        start="2026-05-01",
         end=date.today(),
         timeframe="1D",
         cashflow_types="ALL"
     )
+
+    today_request = GetPortfolioHistoryRequest(
+        start=date.today(),
+        timeframe="5Min",
+        cashflow_types="ALL"
+    )
+
     history = trading_client.get_portfolio_history(history_request)
+    today_data = trading_client.get_portfolio_history(today_request)
     # ----------------------------------------------------------------------------------------------------
 
-    # ---------- Get cash flows form the portfolio for dynamic return calculation automatically ----------
+    # Get Portfolio History Daily Data
     portfolio = pd.DataFrame({
         "date": pd.to_datetime(history.timestamp, unit="s").normalize(),
         "equity": history.equity,
@@ -96,6 +104,16 @@ async def get_portfolio():
     portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
                         / portfolio["begin_equity"])
 
+    # Get Today's Data at 5 Minute Intervals
+    today_portfolio = pd.DataFrame({
+        "date": pd.to_datetime(today_data.timestamp, unit="s").normalize(),
+        "equity": today_data.equity
+    })
+
+    today_portfolio["deposit"] = today_data.cashflow.get("CSD", [0] * len(today_portfolio))
+    today_portfolio["withdrawal"] = today_data.cashflow.get("CSW", [0] * len(today_portfolio))
+    today_portfolio["net_cashflow"] = today_portfolio["deposit"] - today_portfolio["withdrawal"]
+
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
 
     if spy is None or len(spy) < 2:
@@ -105,17 +123,25 @@ async def get_portfolio():
         spy_prices = spy.to_numpy().flatten()
         spy_returns = np.diff(spy_prices) / np.where(spy_prices[:-1] == 0, 1e-8, spy_prices[:-1])
 
+    # PnL Metrics
     equity = float(account.equity)  # Total assets summed
     last_equity = float(account.last_equity)  # Yesterday's final summed assets
 
-    # PnL Metrics
     pnl_daily = sum([float(p.unrealized_intraday_pl) for p in positions])
     daily_return = pnl_daily / last_equity
     daily_return_pct = daily_return * 100 if last_equity != 0 else 0  # PnL in %
-    cum_return = equity - portfolio["deposit"].sum()  # Cumulative return
+
+    starting_equity = portfolio["equity"].iloc[0]
+    current_equity = float(account.equity)
+
+    historical_cashflows = portfolio["net_cashflow"].iloc[1:].sum()
+    today_cashflows = today_portfolio["net_cashflow"].sum()
+    total_cashflows = historical_cashflows + today_cashflows  # Total deposits - withdrawals
+
+    cum_return = current_equity - starting_equity - total_cashflows  # Dollar Return amount cumulative
 
     twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
-    live_twr = (1 + twr) * (1 + daily_return) - 1
+    live_twr = (1 + twr) * (1 + daily_return) - 1  # Time weighted return
     # ----------------------------------------------------------------------------------------------------
 
     # -------------------------------------- Get Position Level Data -------------------------------------
