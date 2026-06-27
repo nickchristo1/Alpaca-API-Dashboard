@@ -5,3 +5,4 @@ alpaca-py
 fastapi
 uvicorn
 python-dotenv
+pandas-market-calendars
