@@ -10,8 +10,9 @@ from dotenv import load_dotenv
 from alpaca.trading.requests import GetPortfolioHistoryRequest
 import yfinance as yf
 import pandas as pd
+import pandas_market_calendars as mcal
 import numpy as np
-from datetime import date
+from datetime import date, timedelta
 
 tickers = ['AGIX',    # KraneShares ETF     Sector: AI ETF
            'AMT',     # American Tower      Sector: Real Estate
@@ -60,6 +61,21 @@ def safe_float(x):
     return float(x)
 
 
+def last_trading_day():
+    """
+    Get the last active trading date, avoids errors in getting historical data
+    :return: last trading day as a date object
+    """
+    nyse = mcal.get_calendar("NYSE")
+    today = date.today()
+    # Look back up to 7 days to find the last trading day
+    schedule = nyse.schedule(
+        start_date=today - timedelta(days=7),
+        end_date=today
+    )
+    return schedule.index[-1].date()
+
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/static/index.html")
@@ -76,13 +92,13 @@ async def get_portfolio():
 
     history_request = GetPortfolioHistoryRequest(
         start="2026-05-01",
-        end=date.today(),
+        end=last_trading_day(),
         timeframe="1D",
         cashflow_types="ALL"
     )
 
     today_request = GetPortfolioHistoryRequest(
-        start=date.today(),
+        start=last_trading_day(),
         timeframe="5Min",
         cashflow_types="ALL"
     )
