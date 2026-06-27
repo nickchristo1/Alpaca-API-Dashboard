@@ -117,8 +117,6 @@ async def get_portfolio():
     portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
     portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
     portfolio["begin_equity"] = portfolio["equity"].shift(1)
-    portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
-                        / portfolio["begin_equity"])
 
     # Get Today's Data at 5 Minute Intervals
     today_portfolio = pd.DataFrame({
@@ -129,6 +127,15 @@ async def get_portfolio():
     today_portfolio["deposit"] = today_data.cashflow.get("CSD", [0] * len(today_portfolio))
     today_portfolio["withdrawal"] = today_data.cashflow.get("CSW", [0] * len(today_portfolio))
     today_portfolio["net_cashflow"] = today_portfolio["deposit"] - today_portfolio["withdrawal"]
+
+    # Ensure any deposits/withdrawals made today are accounted for before the end of the day
+    today_total_cashflow = today_portfolio["net_cashflow"].sum()
+    portfolio.loc[portfolio.index[-1], "net_cashflow"] = today_total_cashflow
+    portfolio.loc[portfolio.index[-1], "deposit"] = today_portfolio["deposit"].sum()
+    portfolio.loc[portfolio.index[-1], "withdrawal"] = today_portfolio["withdrawal"].sum()
+
+    portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
+                        / portfolio["begin_equity"])
 
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
 
@@ -150,13 +157,10 @@ async def get_portfolio():
     starting_equity = portfolio["equity"].iloc[0]
     current_equity = float(account.equity)
 
-    historical_cashflows = portfolio["net_cashflow"].iloc[1:].sum()
-    today_cashflows = today_portfolio["net_cashflow"].sum()
-    total_cashflows = historical_cashflows + today_cashflows  # Total deposits - withdrawals
-
+    total_cashflows = portfolio["net_cashflow"].iloc[1:].sum()
     cum_return = current_equity - starting_equity - total_cashflows  # Dollar Return amount cumulative
 
-    twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
+    twr = float((1 + portfolio["r_t"].dropna()).iloc[:-1].prod() - 1)  # Time weighted return (updated to yesterday)
     live_twr = (1 + twr) * (1 + daily_return) - 1  # Time weighted return
     # ----------------------------------------------------------------------------------------------------
 
