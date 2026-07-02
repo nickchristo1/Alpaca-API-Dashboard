@@ -91,20 +91,13 @@ async def get_portfolio():
     positions = trading_client.get_all_positions()
 
     history_request = GetPortfolioHistoryRequest(
-        start="2026-05-01",
+        start="2026-04-29",
         end=last_trading_day(),
         timeframe="1D",
         cashflow_types="ALL"
     )
 
-    today_request = GetPortfolioHistoryRequest(
-        start=last_trading_day(),
-        timeframe="5Min",
-        cashflow_types="ALL"
-    )
-
     history = trading_client.get_portfolio_history(history_request)
-    today_data = trading_client.get_portfolio_history(today_request)
     # ----------------------------------------------------------------------------------------------------
 
     # Get Portfolio History Daily Data
@@ -117,22 +110,6 @@ async def get_portfolio():
     portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
     portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
     portfolio["begin_equity"] = portfolio["equity"].shift(1)
-
-    # Get Today's Data at 5 Minute Intervals
-    today_portfolio = pd.DataFrame({
-        "date": pd.to_datetime(today_data.timestamp, unit="s").normalize(),
-        "equity": today_data.equity
-    })
-
-    today_portfolio["deposit"] = today_data.cashflow.get("CSD", [0] * len(today_portfolio))
-    today_portfolio["withdrawal"] = today_data.cashflow.get("CSW", [0] * len(today_portfolio))
-    today_portfolio["net_cashflow"] = today_portfolio["deposit"] - today_portfolio["withdrawal"]
-
-    # Ensure any deposits/withdrawals made today are accounted for before the end of the day
-    today_total_cashflow = today_portfolio["net_cashflow"].sum()
-    portfolio.loc[portfolio.index[-1], "net_cashflow"] = today_total_cashflow
-    portfolio.loc[portfolio.index[-1], "deposit"] = today_portfolio["deposit"].sum()
-    portfolio.loc[portfolio.index[-1], "withdrawal"] = today_portfolio["withdrawal"].sum()
 
     portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
                         / portfolio["begin_equity"])
