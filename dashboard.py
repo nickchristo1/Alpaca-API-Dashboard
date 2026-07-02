@@ -47,7 +47,7 @@ app = FastAPI()
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
-cash_flows = os.getenv("CASH_FLOWS").replace("|", "\n")
+cash_flows_csv = os.getenv("CASH_FLOWS").replace("|", "\n")
 trading_client = TradingClient(api_key, secret_key, paper=False)
 
 if os.path.isdir("static"):  # Static frontend
@@ -87,7 +87,7 @@ async def get_portfolio():
     # ----------------------------------------------------------------------------------------------------
 
     # Get Deposit Data
-    cash_flows = pd.read_csv(StringIO(cash_flows))
+    cash_flows = pd.read_csv(StringIO(cash_flows_csv))
     cash_flows["date"] = pd.to_datetime(cash_flows["date"])
 
     # Get Portfolio History Daily Data
