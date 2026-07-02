@@ -99,6 +99,9 @@ async def get_portfolio():
         "equity": history.equity,
     })
 
+    first_valid = portfolio["equity"].ne(0).idxmax()
+    portfolio = portfolio.loc[first_valid:].reset_index(drop=True)
+
     cash_flows["date"] = pd.to_datetime(cash_flows["date"])
     portfolio["date"] = pd.to_datetime(portfolio["date"])
 
@@ -151,6 +154,7 @@ async def get_portfolio():
 
     twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
     live_twr = (1 + twr) * (1 + daily_return) - 1  # Time weighted return
+    live_twr = safe_float(live_twr)
     # ----------------------------------------------------------------------------------------------------
 
     # -------------------------------------- Get Position Level Data -------------------------------------
