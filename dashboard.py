@@ -12,6 +12,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from datetime import date
+from io import StringIO
 
 tickers = ['AGIX',    # KraneShares ETF     Sector: AI ETF
            'AMT',     # American Tower      Sector: Real Estate
@@ -46,6 +47,7 @@ app = FastAPI()
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
+cash_flows = os.getenv("CASH_FLOWS").replace("|", "\n")
 trading_client = TradingClient(api_key, secret_key, paper=False)
 
 if os.path.isdir("static"):  # Static frontend
@@ -84,19 +86,45 @@ async def get_portfolio():
     history = trading_client.get_portfolio_history(history_request)
     # ----------------------------------------------------------------------------------------------------
 
+    # Get Deposit Data
+    cash_flows = pd.read_csv(StringIO(cash_flows))
+    cash_flows["date"] = pd.to_datetime(cash_flows["date"])
+
     # Get Portfolio History Daily Data
     portfolio = pd.DataFrame({
-        "date": pd.to_datetime(history.timestamp, unit="s").normalize(),
+        "date": pd.to_datetime(history.timestamp, unit="s", utc=True)
+        .tz_convert("America/New_York")
+        .normalize()
+        .tz_localize(None),
         "equity": history.equity,
     })
 
-    portfolio["deposit"] = history.cashflow.get("CSD", [0] * len(portfolio))
-    portfolio["withdrawal"] = history.cashflow.get("CSW", [0] * len(portfolio))
-    portfolio["net_cashflow"] = (portfolio["deposit"] - portfolio["withdrawal"])
-    portfolio["begin_equity"] = portfolio["equity"].shift(1)
+    cash_flows["date"] = pd.to_datetime(cash_flows["date"])
+    portfolio["date"] = pd.to_datetime(portfolio["date"])
 
-    portfolio["r_t"] = ((portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
-                        / portfolio["begin_equity"])
+    # Find the next trading day for each cash flow
+    trading_days = portfolio["date"].sort_values().reset_index(drop=True)
+    idx = trading_days.searchsorted(cash_flows["date"])
+
+    # Drop any deposits after the last portfolio date
+    cash_flows = cash_flows[idx < len(trading_days)].copy()
+    idx = idx[idx < len(trading_days)]
+    cash_flows["date"] = trading_days.iloc[idx].values
+
+    # Combine multiple deposits that land on the same trading day
+    cash_flows = (cash_flows.groupby("date", as_index=False).agg({"deposit": "sum", "withdrawal": "sum"}))
+
+    # Merge into portfolio
+    portfolio = portfolio.merge(cash_flows, on="date", how="left")
+
+    portfolio["deposit"] = portfolio["deposit"].fillna(0)
+    portfolio["withdrawal"] = portfolio["withdrawal"].fillna(0)
+    portfolio["net_cashflow"] = portfolio["deposit"] - portfolio["withdrawal"]
+    portfolio["begin_equity"] = portfolio["equity"].shift(1)
+    portfolio["r_t"] = (
+            (portfolio["equity"] - portfolio["begin_equity"] - portfolio["net_cashflow"])
+            / (portfolio["begin_equity"] + portfolio["net_cashflow"])
+    )
 
     spy = yf.download("SPY", period="1y", interval="1d")["Close"].dropna()
 
@@ -121,7 +149,7 @@ async def get_portfolio():
     total_cashflows = portfolio["net_cashflow"].iloc[1:].sum()
     cum_return = current_equity - starting_equity - total_cashflows  # Dollar Return amount cumulative
 
-    twr = float((1 + portfolio["r_t"].dropna()).iloc[:-1].prod() - 1)  # Time weighted return (updated to yesterday)
+    twr = float((1 + portfolio["r_t"].dropna()).prod() - 1)  # Time weighted return (updated to yesterday)
     live_twr = (1 + twr) * (1 + daily_return) - 1  # Time weighted return
     # ----------------------------------------------------------------------------------------------------
 
