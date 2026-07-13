@@ -316,15 +316,18 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
 
     constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1})  # Sum of weights = 1)
     bounds = tuple((0, .15) for _ in range(n))
-    init_guess = np.ones(n) / n
 
-    res = minimize(objective, init_guess, method='SLSQP',
-                   bounds=bounds, constraints=constraints)
+    for i in range(10):
+        init_guess = np.ones(n) / n
 
-    if not res.success:
-        raise ValueError(f"Optimization failed: {res.message}")
+        res = minimize(objective, init_guess, method='SLSQP',
+                    bounds=bounds, constraints=constraints)
 
-    return res.x
+        if res.success:
+            return res.x
+
+    # If the loop finishes without success, raise the error
+    raise ValueError(f"Optimization failed after 10 attempts.")
 
 
 # 1.) Perform the Backtest
