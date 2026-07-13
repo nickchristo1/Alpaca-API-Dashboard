@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 from datetime import date
 from io import StringIO
+from backtest import run_backtest_calculation
 
 tickers = ['AGIX',    # KraneShares ETF     Sector: AI ETF
            'AMT',     # American Tower      Sector: Real Estate
@@ -43,6 +44,20 @@ tickers = ['AGIX',    # KraneShares ETF     Sector: AI ETF
 
 load_dotenv()  # Load keys
 app = FastAPI()
+backtest_cache = {"data": None, "ready": False}  # Cache storage
+
+
+@app.on_event("startup")
+async def startup_event():
+    import threading
+    def background_task():
+        data = run_backtest_calculation()
+        backtest_cache["data"] = data
+        backtest_cache["ready"] = True
+        
+    thread = threading.Thread(target=background_task)
+    thread.start()
+
 
 # --- Alpaca Client ---
 api_key = os.getenv("ALPACA_API_KEY")
@@ -286,3 +301,12 @@ async def get_portfolio():
         "history": chart_data,
         "analytics": analytics
     }
+
+
+# --------------------------------- Return Values from the Backtest ----------------------------------
+@app.get("/api/backtest")
+async def get_backtest():
+    if not backtest_cache["ready"]:
+        return {"status": "processing"}
+    return backtest_cache["data"]
+

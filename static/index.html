@@ -6,57 +6,27 @@
     <title>Weekly Auto-Rebalance MVO Portfolio Dashboard</title>
 
     <style>
-        body {
-            font-family: -apple-system, Times;
-            margin: 15px;
-            background: #0d1117;
-            color: white;
-        }
+        body { font-family: -apple-system, Times; margin: 15px; background: #0d1117; color: white; }
+        h2 { margin-bottom: 15px; }
 
-        h2 {
-            margin-bottom: 15px;
-        }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { background: #161b22; border: 1px solid #30363d; color: #8b949e; padding: 10px 20px; 
+            border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        .tab-btn.active { background: #58a6ff; color: white; border-color: #58a6ff; }
 
-        .card {
-            background: #161b22;
-            padding: 16px;
-            border-radius: 14px;
-            margin-bottom: 12px;
-            box-shadow: 0 0 8px rgba(0,0,0,.3);
-        }
+        .card { background: #161b22; padding: 16px; border-radius: 14px; margin-bottom: 12px; 
+            box-shadow: 0 0 8px rgba(0,0,0,.3); }
+        .label { color: #8b949e; font-size: 12px; }
+        .value { font-size: 24px; margin-top: 4px; font-weight: bold; }
+        .green { color: #2ecc71; } .red { color: #ff5c5c; }
 
-        .label {
-            color: #8b949e;
-            font-size: 12px;
-        }
+        .heatmap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); 
+            gap: 10px; margin-top: 15px; }
+        .heatmap-cell { padding: 10px; border-radius: 8px; text-align: center; }
 
-        .value {
-            font-size: 24px;
-            margin-top: 4px;
-            font-weight: bold;
-        }
-
-        .green { color: #2ecc71; }
-        .red { color: #ff5c5c; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            font-size: 13px;
-            text-align: left;
-            border-bottom: 1px solid #30363d;
-        }
-
-        #updated {
-            margin-top: 10px;
-            font-size: 11px;
-            color: gray;
-        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; font-size: 13px; text-align: left; border-bottom: 1px solid #30363d; }
+        #updated { margin-top: 10px; font-size: 11px; color: gray; }
 
         .analytics-grid {
             display: grid;
@@ -101,19 +71,10 @@
             }
         }
 
-        .top-metrics {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-bottom: 12px;
-        }
+        .top-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;  margin-bottom: 12px; }
 
         /* Mobile responsiveness */
-        @media (max-width: 800px) {
-            .top-metrics {
-                grid-template-columns: 1fr;
-            }
-        }
+        @media (max-width: 800px) { .top-metrics { grid-template-columns: 1fr; } }
     </style>
 </head>
 
@@ -121,52 +82,45 @@
 
 <h2>Weekly Auto-Rebalance MVO Portfolio Dashboard</h2>
 
-<div class="top-metrics">
-
-    <div class="card">
-        <div class="label">Total Equity</div>
-        <div class="value" id="equity">-</div>
-    </div>
-
-    <div class="card">
-        <div class="label">Daily PnL</div>
-        <div class="value" id="pnl">-</div>
-    </div>
-
-    <div class="card">
-        <div class="label">Portfolio Return</div>
-        <div class="value" id="live_twr">-</div>
-    </div>
-
+<!-- Tab Navigation -->
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('live')">Live Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('backtest')">Backtest Analytics</button>
 </div>
 
-<div class="card">
-    <div class="label">1 Month Portfolio Value</div>
-    <canvas id="equityChart"></canvas>
+<!-- LIVE DASHBOARD CONTENT -->
+<div id="live-tab" class="content-tab"></div>
+    <div class="top-metrics">
+        <div class="card"><div class="label">Total Equity</div><div class="value" id="equity">-</div></div>
+        <div class="card"><div class="label">Daily PnL</div><div class="value" id="pnl">-</div></div>
+        <div class="card"><div class="label">Portfolio Return</div><div class="value" id="live_twr">-</div></div>
+    </div>
+    <div class="card"><div class="label">1 Month Portfolio Value</div><canvas id="equityChart"></canvas></div>
+    <div class="card"><div class="label">Open Positions</div>
+        <table id="positions"><thead><tr>
+                    <th>Symbol</th>
+                    <th>Quantity</th>
+                    <th>Market Value</th>
+                    <th>Weight</th>
+                    <th>Total P/L</th>
+                    <th>% Return</th>
+                    <th>Today</th>
+                </tr></thead><tbody></tbody></table></div>
+    <div class="card">
+        <div class="label">Analytics (Annualized to 1 Year)</div><div id="analytics" class="analytics-grid"></div>
 </div>
 
-<div class="card">
-    <div class="label">Open Positions</div>
-    <table id="positions">
-        <thead>
-            <tr>
-                <th>Symbol</th>
-                <th>Quantity</th>
-                <th>Market Value</th>
-                <th>Weight</th>
-                <th>Total P/L</th>
-                <th>% Return</th>
-                <th>Today</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-</div>
-
-<div class="card">
-    <div class="label">Analytics (Annualized to 1 Year)</div>
-
-    <div id="analytics" class="analytics-grid"></div>
+<!-- BACKTEST CONTENT (Hidden by default) -->
+<div id="backtest-tab" class="content-tab" style="display:none;">
+    <div class="top-metrics">
+        <div class="card"><div class="label">Backtest Return</div><div class="value" id="bt-ret">-</div></div>
+        <div class="card"><div class="label">Sharpe Ratio</div><div class="value" id="bt-sharpe">-</div></div>
+        <div class="card"><div class="label">Max Drawdown</div><div class="value" id="bt-dd">-</div></div>
+    </div>
+    <div class="card">
+        <div class="label">Risk Attribution Heatmap</div>
+        <div id="heatmap" class="heatmap-grid"></div>
+    </div>
 </div>
 
 <div id="updated">Last updated: --</div>
@@ -180,8 +134,31 @@ function pct(x) {
     return (x >= 0 ? "+" : "") + Number(x).toFixed(2) + "%";
 }
 
-let equityChart = null;
+function switchTab(tabId) {
+    document.querySelectorAll('.content-tab').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(tabId + '-tab').style.display = 'block';
+    event.currentTarget.classList.add('active');
+    if (tabId === 'backtest') loadBacktest(); // Trigger backtest load
+}
 
+async function loadBacktest() {
+    const res = await fetch("/api/backtest");
+    const data = await res.json();
+    if (data.status === "processing") return;
+    document.getElementById("bt-ret").innerText = (data.metrics.return * 100).toFixed(2) + "%";
+    document.getElementById("bt-sharpe").innerText = data.metrics.sharpe.toFixed(2);
+    document.getElementById("bt-dd").innerText = (data.metrics.max_drawdown * 100).toFixed(2) + "%";
+    const heatDiv = document.getElementById("heatmap");
+    heatDiv.innerHTML = Object.entries(data.attribution).map(([ticker, val]) => {
+        return `<div class="heatmap-cell" style="background: rgba(255, 92, 92, ${Math.min(val*50, 1)});">
+                    <div style="font-size: 11px;">${ticker}</div>
+                    <div style="font-weight: bold;">${(val * 100).toFixed(1)}%</div>
+                </div>`;
+    }).join('');
+}
+
+let equityChart = null;
 async function loadData() {
     try {
         let scrollY = window.scrollY;
@@ -368,7 +345,7 @@ async function loadData() {
 }
 
 loadData();
-setInterval(loadData, 15000);
+setInterval(loadData, 30000);
 </script>
 
 </body>
