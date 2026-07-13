@@ -1,13 +1,13 @@
 # Nicholas Christophides  Nick.christophides@gmail.com
 
 from datetime import datetime
-from dashboard import tickers
 import yfinance as yf
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import spearmanr
 from sklearn.linear_model import Ridge
+from config import tickers
 
 
 # 0.) Functions needed for replication
