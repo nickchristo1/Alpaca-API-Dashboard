@@ -286,5 +286,10 @@ async def get_portfolio():
 async def get_backtest():
     if not backtest_cache["ready"]:
         return {"status": "processing"}
+
+    # Check if the backtest returned an error
+    if "error" in backtest_cache["data"]:
+        return {"status": "error", "message": backtest_cache["data"]["error"]}
+    
     return backtest_cache["data"]
 

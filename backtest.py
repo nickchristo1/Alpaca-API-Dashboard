@@ -280,7 +280,7 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
 # 1.) Perform the Backtest
 # ------------------------
 def run_backtest_calculation():
-    data = yf.download(tickers, period="4y", auto_adjust=True)["Close"].tail(820)  # Extracted prices from yfinance
+    data = yf.download(tickers, period="4y", auto_adjust=True, threads=True, progress=False)["Close"].tail(820) 
     data.index = pd.to_datetime(data.index)  # Ensure the index is datetime
 
     optimal_weights = None  # Hold the array of position weights
