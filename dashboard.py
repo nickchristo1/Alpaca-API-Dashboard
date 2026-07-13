@@ -17,6 +17,7 @@ from backtest import run_backtest_calculation
 from config import tickers
 
 
+
 # 1.) Set-up and Initialization
 # -----------------------------
 

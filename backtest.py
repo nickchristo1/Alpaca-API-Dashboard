@@ -1,17 +1,67 @@
 # Nicholas Christophides  Nick.christophides@gmail.com
 
-from datetime import datetime
+import time
+import os
 import yfinance as yf
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import spearmanr
+from dotenv import load_dotenv
 from sklearn.linear_model import Ridge
 from config import tickers
+from alpaca.data.requests import StockLatestQuoteRequest
+from alpaca.data.historical import StockHistoricalDataClient
 
 
 # 0.) Functions needed for replication
 # ------------------------------------
+load_dotenv()  # Load keys
+api_key = os.getenv("ALPACA_API_KEY")
+secret_key = os.getenv("ALPACA_SECRET_KEY")
+DATA_FILE = "market_data.csv"
+data_client = StockHistoricalDataClient(api_key, secret_key)
+
+
+def get_data():
+    SECONDS_IN_DAY = 86400 
+    
+    if os.path.exists(DATA_FILE):
+        file_age = time.time() - os.path.getmtime(DATA_FILE)
+        if file_age < SECONDS_IN_DAY:
+            return pd.read_csv(DATA_FILE, index_col=0, parse_dates=True)
+        else:
+            data = yf.download(tickers, period="4y", auto_adjust=True, progress=False)["Close"].tail(820)
+            data.to_csv(DATA_FILE)
+    else:
+        data = yf.download(tickers, period="4y", auto_adjust=True, progress=False)["Close"].tail(820)
+        data.to_csv(DATA_FILE)
+    
+    try:
+        # Map your tickers to Alpaca format (BRK-B -> BRK.B)
+        alpaca_tickers = [t.replace("BRK-B", "BRK.B") for t in tickers]
+        
+        # Fetch all quotes at once (much faster than a loop)
+        request = StockLatestQuoteRequest(symbol_or_symbols=alpaca_tickers)
+        quotes = data_client.get_stock_latest_quote(request)
+        
+        # Update the last row
+        last_row_idx = data.index[-1]
+        
+        for ticker in tickers:
+            alpaca_sym = ticker.replace("BRK-B", "BRK.B")
+            # Get bid price, fallback to 0 if quote is missing
+            price = getattr(quotes.get(alpaca_sym), 'bid_price', 0.0)
+            
+            if price > 0:
+                data.at[last_row_idx, ticker] = float(price)
+                
+    except Exception as e:
+        print(f"Live price update failed, using cached data: {e}")
+
+    return data
+
+
 def get_rmt_threshold(N, d):
     """Calculates the Marchenko-Pastur upper bound."""
     q = N / d  # T/N ratio
@@ -280,7 +330,11 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
 # 1.) Perform the Backtest
 # ------------------------
 def run_backtest_calculation():
-    data = yf.download(tickers, period="4y", auto_adjust=True, threads=True, progress=False)["Close"].tail(820) 
+    data = get_data()
+
+    if data is None or data.empty:
+            return {"error": "Failed to load market data."}
+    
     data.index = pd.to_datetime(data.index)  # Ensure the index is datetime
 
     optimal_weights = None  # Hold the array of position weights
