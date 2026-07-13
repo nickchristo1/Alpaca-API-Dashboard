@@ -313,156 +313,152 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
 
 # 1.) Perform the Backtest
 # ------------------------
+def run_backtest_calculation():
+    data = get_data()
 
-data = get_data()
-
-if data is None or data.empty:
-        # return {"error": "Failed to load market data."}
-        print("error: Failed to load market data.")
-    
-data.index = pd.to_datetime(data.index)  # Ensure the index is datetime
-
-optimal_weights = None  # Hold the array of position weights
-previous_week = None  # Used to determine when rebalancing should occur
-previous_month = None  # Used to determine when to re-optimize the Ridge regression
-backtest_period = 120 # Backtest over 120 trading days
-portfolio_daily_returns = {}  # Used in storing the portfolio returns
-daily_returns = data.tail(backtest_period+1).pct_change(fill_method=None).dropna()  # Series of returns 
-rebalance_dates = []  # Used in visualization
-optimal_alpha = None # Store the optimal alpha for the Ridge regression
-
-# Calculate the Market Caps for the Black-Litterman framework
-market_caps = {}
-for ticker in tickers:
-    try:
-        ticker_obj = yf.Ticker(ticker)
-        cap = ticker_obj.info.get('marketCap')
-        # Handle cases where marketCap might be None
-        market_caps[ticker] = cap if cap is not None else 0
-    except Exception as e:
-        market_caps[ticker] = 0
-
-# Convert to Series and fill missing/zero values with median
-caps_series = pd.Series(market_caps)
-median_cap = caps_series[caps_series > 0].median()
-caps_series = caps_series.replace(0, median_cap)
-market_weights = caps_series / caps_series.sum()
-
-# Loop through the backtest period, rebalancing weekly
-for current_date, day_returns in daily_returns.iterrows():
-    current_week = current_date.isocalendar()[1]  # Get the week number of the current date
-    # If new week or beginning of the backtest, rebalance the portfolio
-    if optimal_weights is None or current_week != previous_week:
+    if data is None or data.empty:
+            # return {"error": "Failed to load market data."}
+            print("error: Failed to load market data.")
         
-        # Find necessary quantities
-        window_data = data.loc[:current_date].tail(700)  # Use the last 700 trading days for training
-        log_returns = np.log(window_data / window_data.shift(1)).dropna()
-        standardized_log_returns = (log_returns - log_returns.mean()) / log_returns.std()  # Standardize the returns
-        sample_corr_mat = np.cov(np.array(standardized_log_returns), rowvar=False)  # Sample correlation matrix
-        cov_mat, _ = estimate_cov_matrix(sample_corr_mat, log_returns)  # Estimate the covariance
+    data.index = pd.to_datetime(data.index)  # Ensure the index is datetime
 
-        # Prepare the panel data for the Ridge regression
-        panel_data = prepare_panel_data(window_data)
-        features = ['Mom_1M', 'Mom_6M', 'Mom_12M', 'Vol_3M']
-        standardized_panel = cross_sectional_standardize(panel_data, features)
-        alphas_to_test = np.logspace(0, 4, 20)
-        if optimal_alpha is None or current_date.month != previous_month:
+    optimal_weights = None  # Hold the array of position weights
+    previous_week = None  # Used to determine when rebalancing should occur
+    previous_month = None  # Used to determine when to re-optimize the Ridge regression
+    backtest_period = 120 # Backtest over 120 trading days
+    portfolio_daily_returns = {}  # Used in storing the portfolio returns
+    daily_returns = data.tail(backtest_period+1).pct_change(fill_method=None).dropna()  # Series of returns 
+    rebalance_dates = []  # Used in visualization
+    optimal_alpha = None # Store the optimal alpha for the Ridge regression
 
-            # Get the optimal alpha and the raw predictions from the Ridge regression using walk-forward validation
-            optimal_alpha = optimize_ridge_penalty(standardized_panel, features, 
-                                                                alphas=alphas_to_test, min_train_weeks=20)
+    # Calculate the Market Caps for the Black-Litterman framework
+    market_caps = {}
+    for ticker in tickers:
+        try:
+            ticker_obj = yf.Ticker(ticker)
+            cap = ticker_obj.info.get('marketCap')
+            # Handle cases where marketCap might be None
+            market_caps[ticker] = cap if cap is not None else 0
+        except Exception as e:
+            market_caps[ticker] = 0
+
+    # Convert to Series and fill missing/zero values with median
+    caps_series = pd.Series(market_caps)
+    median_cap = caps_series[caps_series > 0].median()
+    caps_series = caps_series.replace(0, median_cap)
+    market_weights = caps_series / caps_series.sum()
+
+    # Loop through the backtest period, rebalancing weekly
+    for current_date, day_returns in daily_returns.iterrows():
+        current_week = current_date.isocalendar()[1]  # Get the week number of the current date
+        # If new week or beginning of the backtest, rebalance the portfolio
+        if optimal_weights is None or current_week != previous_week:
             
-            previous_month = current_date.month  # Update the previous month tracker
+            # Find necessary quantities
+            window_data = data.loc[:current_date].tail(700)  # Use the last 700 trading days for training
+            log_returns = np.log(window_data / window_data.shift(1)).dropna()
+            standardized_log_returns = (log_returns - log_returns.mean()) / log_returns.std()  # Standardize the returns
+            sample_corr_mat = np.cov(np.array(standardized_log_returns), rowvar=False)  # Sample correlation matrix
+            cov_mat, _ = estimate_cov_matrix(sample_corr_mat, log_returns)  # Estimate the covariance
+
+            # Prepare the panel data for the Ridge regression
+            panel_data = prepare_panel_data(window_data)
+            features = ['Mom_1M', 'Mom_6M', 'Mom_12M', 'Vol_3M']
+            standardized_panel = cross_sectional_standardize(panel_data, features)
+            alphas_to_test = np.logspace(0, 4, 20)
+            if optimal_alpha is None or current_date.month != previous_month:
+
+                # Get the optimal alpha and the raw predictions from the Ridge regression using walk-forward validation
+                optimal_alpha = optimize_ridge_penalty(standardized_panel, features, 
+                                                                    alphas=alphas_to_test, min_train_weeks=20)
+                
+                previous_month = current_date.month  # Update the previous month tracker
+            
+            raw_predictions = walk_forward_ridge(standardized_panel, features, alpha=optimal_alpha, min_train_weeks=20)
+
+            smoothed_predictions = apply_ema_smoothing(raw_predictions, span=3)
+
+            # Calculate the posterior returns using the smoothed predictions (Black-Litterman framework)
+            delta = 3.0  # Standard
+            cov_matrix = pd.DataFrame(cov_mat, index=tickers, columns=tickers)
         
-        raw_predictions = walk_forward_ridge(standardized_panel, features, alpha=optimal_alpha, min_train_weeks=20)
+            pi = delta * cov_matrix.dot(market_weights)
+            pi_annual = pi * 252
+            pi_series = pd.Series(pi_annual, index=tickers)  # PI in Black-Litterman Equations
 
-        smoothed_predictions = apply_ema_smoothing(raw_predictions, span=3)
+            today_str = current_date.strftime('%Y-%m-%d')
 
-        # Calculate the posterior returns using the smoothed predictions (Black-Litterman framework)
-        delta = 3.0  # Standard
-        cov_matrix = pd.DataFrame(cov_mat, index=tickers, columns=tickers)
-    
-        pi = delta * cov_matrix.dot(market_weights)
-        pi_annual = pi * 252
-        pi_series = pd.Series(pi_annual, index=tickers)  # PI in Black-Litterman Equations
+            if today_str in smoothed_predictions.index.get_level_values(0):
+                target_date = today_str
+            else:
+                # If today isn't a trading day, grab the most recent available date
+                target_date = smoothed_predictions.index.get_level_values(0).max()
 
-        today_str = current_date.strftime('%Y-%m-%d')
+            tau = 0.05
+            P = np.eye(len(tickers))  # P is an identity matrix because we have a view on every asset
+            Q = smoothed_predictions.xs(target_date, level=0)['Smoothed_Predicted_Ret'] * 52
+            Q = Q.clip(lower=-0.5, upper=1)  # Don't allow for overly extreme predictions
 
-        if today_str in smoothed_predictions.index.get_level_values(0):
-            target_date = today_str
-        else:
-            # If today isn't a trading day, grab the most recent available date
-            target_date = smoothed_predictions.index.get_level_values(0).max()
+            omega = np.diag(np.diag(tau * cov_matrix))
 
-        tau = 0.05
-        P = np.eye(len(tickers))  # P is an identity matrix because we have a view on every asset
-        Q = smoothed_predictions.xs(target_date, level=0)['Smoothed_Predicted_Ret'] * 52
-        Q = Q.clip(lower=-0.5, upper=1)  # Don't allow for overly extreme predictions
+            inv_tau_sigma = np.linalg.inv(tau * cov_matrix)
+            term1 = np.linalg.inv(inv_tau_sigma + P.T @ np.linalg.inv(omega) @ P)
+            term2 = (inv_tau_sigma @ pi) + (P.T @ np.linalg.inv(omega) @ Q)
+            posterior_returns = term1 @ term2  # Posterior expected returns from Black-Litterman
 
-        omega = np.diag(np.diag(tau * cov_matrix))
+            # Calculate the optimal weights using the posterior returns and covariance matrix
+            optimal_weights = np.array(eff_front_no_shorts(posterior_returns, cov_mat))
 
-        inv_tau_sigma = np.linalg.inv(tau * cov_matrix)
-        term1 = np.linalg.inv(inv_tau_sigma + P.T @ np.linalg.inv(omega) @ P)
-        term2 = (inv_tau_sigma @ pi) + (P.T @ np.linalg.inv(omega) @ Q)
-        posterior_returns = term1 @ term2  # Posterior expected returns from Black-Litterman
+            # Update the week tracker and rebalance date list
+            rebalance_dates.append(current_date)
+            previous_week = current_week
 
-        # Calculate the optimal weights using the posterior returns and covariance matrix
-        optimal_weights = np.array(eff_front_no_shorts(posterior_returns, cov_mat))
+        portfolio_daily_returns[current_date] = 0.98 * day_returns.dot(optimal_weights)  # Portfolio return at date
 
-        # Update the week tracker and rebalance date list
-        rebalance_dates.append(current_date)
-        previous_week = current_week
-
-    portfolio_daily_returns[current_date] = 0.98 * day_returns.dot(optimal_weights)  # Portfolio return at date
-
-return_series = pd.Series(portfolio_daily_returns).sort_index()
+    return_series = pd.Series(portfolio_daily_returns).sort_index()
 
 
-# 2.) Evaluate the performance of the strategy, calculate the Sharpe ratio and other metrics
-# ------------------------------------------------------------------------------------------
-cumulative_growth = (1 + return_series).cumprod() # Portfolio cumulative growth over the backtest period
-strategy_return = cumulative_growth.iloc[-1] - 1
-strategy_vol = return_series.std() * np.sqrt(252)  # Annualized volatility
-risk_free_rate = 0.04  # Assume a 4% annual risk-free rate
-strategy_sharpe_ratio = (strategy_return - risk_free_rate) / strategy_vol
+    # 2.) Evaluate the performance of the strategy, calculate the Sharpe ratio and other metrics
+    # ------------------------------------------------------------------------------------------
+    cumulative_growth = (1 + return_series).cumprod() # Portfolio cumulative growth over the backtest period
+    strategy_return = cumulative_growth.iloc[-1] - 1
+    strategy_vol = return_series.std() * np.sqrt(252)  # Annualized volatility
+    risk_free_rate = 0.04  # Assume a 4% annual risk-free rate
+    strategy_sharpe_ratio = (strategy_return - risk_free_rate) / strategy_vol
 
-spy = yf.download("SPY", period="8mo", auto_adjust=True)["Close"].tail(120)  # Compare strategy to SPY
-spy_return_series = spy.pct_change(fill_method=None).dropna()
-spy_cum_return = (1 + spy_return_series).cumprod()
+    spy = yf.download("SPY", period="8mo", auto_adjust=True)["Close"].tail(120)  # Compare strategy to SPY
+    spy_return_series = spy.pct_change(fill_method=None).dropna()
+    spy_cum_return = (1 + spy_return_series).cumprod()
 
-historical_var_95 = return_series.quantile(0.05)  # 5% quantile for VaR
-historical_cvar_95 = return_series[return_series <= historical_var_95].mean()  # CVaR at 5%
-historical_var_99 = return_series.quantile(0.01)  # 1% quantile for VaR
-historical_cvar_99 = return_series[return_series <= historical_var_99].mean()  # CVaR at 1%
+    historical_var_95 = return_series.quantile(0.05)  # 5% quantile for VaR
+    historical_cvar_95 = return_series[return_series <= historical_var_95].mean()  # CVaR at 5%
+    historical_var_99 = return_series.quantile(0.01)  # 1% quantile for VaR
+    historical_cvar_99 = return_series[return_series <= historical_var_99].mean()  # CVaR at 1%
 
-max_drawdown = (cumulative_growth / cumulative_growth.cummax() - 1).min()
+    max_drawdown = (cumulative_growth / cumulative_growth.cummax() - 1).min()
 
-# Risk Attribution: Contribution of each asset to the portfolio's risk
-asset_vols = daily_returns.std() * np.sqrt(252)  # Annualized volatility of each asset
+    # Risk Attribution: Contribution of each asset to the portfolio's risk
+    asset_vols = daily_returns.std() * np.sqrt(252)  # Annualized volatility of each asset
 
-portfolio_weights = pd.Series(optimal_weights, index=tickers)
-cov_matrix = pd.DataFrame(cov_mat, index=tickers, columns=tickers)
-cov_matrix_annualized = cov_matrix * 252  # Annualize the covariance matrix
-portfolio_variance_annualized = portfolio_weights.T @ cov_matrix_annualized @ portfolio_weights
-portfolio_vol_annualized = np.sqrt(portfolio_variance_annualized)
-marginal_contribution = (cov_matrix_annualized @ portfolio_weights) / portfolio_vol_annualized
-vol_contribution = portfolio_weights * marginal_contribution
-vol_contribution_percent = vol_contribution / portfolio_vol_annualized
+    portfolio_weights = pd.Series(optimal_weights, index=tickers)
+    cov_matrix = pd.DataFrame(cov_mat, index=tickers, columns=tickers)
+    cov_matrix_annualized = cov_matrix * 252  # Annualize the covariance matrix
+    portfolio_variance_annualized = portfolio_weights.T @ cov_matrix_annualized @ portfolio_weights
+    portfolio_vol_annualized = np.sqrt(portfolio_variance_annualized)
+    marginal_contribution = (cov_matrix_annualized @ portfolio_weights) / portfolio_vol_annualized
+    vol_contribution = portfolio_weights * marginal_contribution
+    vol_contribution_percent = vol_contribution / portfolio_vol_annualized
 
-    # return {
-    #     "metrics": {
-    #         "return": float(strategy_return),
-    #         "volatility": float(strategy_vol),
-    #         "sharpe": float(strategy_sharpe_ratio),
-    #         "max_drawdown": float(max_drawdown),
-    #         "var_95": float(historical_var_95),
-    #         "var_99": float(historical_var_99)
-    #     },
-    #     "attribution": {
-    #         ticker: float(val) for ticker, val in vol_contribution_percent.items()
-    #     }
-    # }
-
-
-
-# def run_backtest_calculation():
+    return {
+        "metrics": {
+            "return": float(strategy_return),
+            "volatility": float(strategy_vol),
+            "sharpe": float(strategy_sharpe_ratio),
+            "max_drawdown": float(max_drawdown),
+            "var_95": float(historical_var_95),
+            "var_99": float(historical_var_99)
+        },
+        "attribution": {
+            ticker: float(val) for ticker, val in vol_contribution_percent.items()
+        }
+    }
