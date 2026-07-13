@@ -28,49 +28,6 @@
         th, td { padding: 8px; font-size: 13px; text-align: left; border-bottom: 1px solid #30363d; }
         #updated { margin-top: 10px; font-size: 11px; color: gray; }
 
-        .analytics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-top: 12px;
-        }
-
-        .analytics-box {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 12px;
-            padding: 14px;
-        }
-
-        .analytics-title {
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 12px;
-            color: #58a6ff;
-        }
-
-        .metric {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-
-        .metric-name {
-            color: #8b949e;
-        }
-
-        .metric-value {
-            font-weight: 600;
-        }
-
-        /* Mobile responsiveness */
-        @media (max-width: 800px) {
-            .analytics-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .top-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;  margin-bottom: 12px; }
 
         /* Mobile responsiveness */
@@ -106,8 +63,6 @@
                     <th>% Return</th>
                     <th>Today</th>
                 </tr></thead><tbody></tbody></table></div>
-    <div class="card">
-        <div class="label">Analytics (Annualized to 1 Year)</div><div id="analytics" class="analytics-grid"></div>
 </div>
 
 <!-- BACKTEST CONTENT (Hidden by default) -->
@@ -197,87 +152,6 @@ async function loadData() {
             equityChart.destroy();
         }
 
-        const a = data.analytics || {};
-
-        document.getElementById("analytics").innerHTML = `
-            <div class="analytics-box">
-                <div class="analytics-title">Strategy Metrics</div>
-
-                <div class="metric">
-                    <span class="metric-name">Return</span>
-                    <span class="metric-value">
-                        ${(a.strategy_return * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Volatility</span>
-                    <span class="metric-value">
-                    ${(a.strategy_vol * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Sharpe Ratio</span>
-                    <span class="metric-value">
-                        ${a.sharpe.toFixed(2)}
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Max Drawdown</span>
-                    <span class="metric-value">
-                        ${(a.max_drawdown * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">VaR (99%)</span>
-                    <span class="metric-value">
-                        ${(a.var_99 * 100).toFixed(2)}%
-                    </span>
-                </div>
-            </div>
-
-            <div class="analytics-box">
-                <div class="analytics-title">SPY Benchmark</div>
-
-                <div class="metric">
-                    <span class="metric-name">Return</span>
-                    <span class="metric-value">
-                        ${(a.spy_return * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Volatility</span>
-                    <span class="metric-value">
-                        ${(a.spy_vol * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Sharpe Ratio</span>
-                    <span class="metric-value">
-                        ${a.spy_sharpe.toFixed(2)}
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">Max Drawdown</span>
-                    <span class="metric-value">
-                        ${(a.spy_max_drawdown * 100).toFixed(2)}%
-                    </span>
-                </div>
-
-                <div class="metric">
-                    <span class="metric-name">VaR (99%)</span>
-                    <span class="metric-value">
-                        ${(a.spy_var_99 * 100).toFixed(2)}%
-                    </span>
-                </div>
-            </div>
-        `;
 
     const nonZeroValues = values.filter(v => v > 0);
 
