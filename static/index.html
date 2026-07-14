@@ -68,11 +68,24 @@
 
 <!-- BACKTEST CONTENT (Hidden by default) -->
 <div id="backtest-tab" class="content-tab" style="display:none;">
-    <div class="top-metrics">
-        <div class="card"><div class="label">Backtest Return</div><div class="value" id="bt-ret">-</div></div>
-        <div class="card"><div class="label">Sharpe Ratio</div><div class="value" id="bt-sharpe">-</div></div>
-        <div class="card"><div class="label">Max Drawdown</div><div class="value" id="bt-dd">-</div></div>
+    <div class="card header-card">
+        <h3>Strategy Backtest Overview</h3>
+        <p>All metrics are annualized based on a 252 trading day period.</p>
     </div>
+    
+    <!-- Row 1 -->
+    <div class="top-metrics">
+        <div class="card"><div class="label">Return</div><div class="value" id="bt-ret">-</div></div>
+        <div class="card"><div class="label">Volatility</div><div class="value" id="bt-vol">-</div></div>
+        <div class="card"><div class="label">Sharpe Ratio</div><div class="value" id="bt-sharpe">-</div></div>
+    </div>
+    <!-- Row 2 -->
+    <div class="top-metrics">
+        <div class="card"><div class="label">Max Drawdown</div><div class="value" id="bt-dd">-</div></div>
+        <div class="card"><div class="label">VaR 95</div><div class="value" id="bt-var95">-</div></div>
+        <div class="card"><div class="label">VaR 99</div><div class="value" id="bt-var99">-</div></div>
+    </div>
+     <!-- Heat-Map -->
     <div class="card">
         <div class="label">Risk Attribution Heatmap</div>
         <div id="heatmap" class="heatmap-grid"></div>
@@ -102,14 +115,21 @@ async function loadBacktest() {
     const res = await fetch("/api/backtest");
     const data = await res.json();
     if (data.status === "processing") return;
+
     document.getElementById("bt-ret").innerText = (data.metrics.return * 100).toFixed(2) + "%";
+    document.getElementById("bt-vol").innerText = (data.metrics.volatility * 100).toFixed(2) + "%";
     document.getElementById("bt-sharpe").innerText = data.metrics.sharpe.toFixed(2);
+
     document.getElementById("bt-dd").innerText = (data.metrics.max_drawdown * 100).toFixed(2) + "%";
+    document.getElementById("bt-var95").innerText = (data.metrics.var_95 * 100).toFixed(2) + "%";
+    document.getElementById("bt-var99").innerText = (data.metrics.var_99 * 100).toFixed(2) + "%";
+
+    // Heatmap
     const heatDiv = document.getElementById("heatmap");
     heatDiv.innerHTML = Object.entries(data.attribution).map(([ticker, val]) => {
         return `<div class="heatmap-cell" style="background: rgba(255, 92, 92, ${Math.min(val*50, 1)});">
                     <div style="font-size: 11px;">${ticker}</div>
-                    <div style="font-weight: bold;">${(val * 100).toFixed(1)}%</div>
+                    <div style="font-weight: bold;">${(val * 100).toFixed(2)}%</div>
                 </div>`;
     }).join('');
 }

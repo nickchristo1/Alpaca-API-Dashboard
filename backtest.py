@@ -325,7 +325,7 @@ def run_backtest_calculation():
     optimal_weights = None  # Hold the array of position weights
     previous_week = None  # Used to determine when rebalancing should occur
     previous_month = None  # Used to determine when to re-optimize the Ridge regression
-    backtest_period = 120 # Backtest over 120 trading days
+    backtest_period = 252 # Backtest over 252 trading days
     portfolio_daily_returns = {}  # Used in storing the portfolio returns
     daily_returns = data.tail(backtest_period+1).pct_change(fill_method=None).dropna()  # Series of returns 
     rebalance_dates = []  # Used in visualization
@@ -396,7 +396,8 @@ def run_backtest_calculation():
 
             tau = 0.05
             P = np.eye(len(tickers))  # P is an identity matrix because we have a view on every asset
-            Q = smoothed_predictions.xs(target_date, level=0)['Smoothed_Predicted_Ret'] * 52
+            Q_raw = smoothed_predictions.xs(target_date, level=0)['Smoothed_Predicted_Ret'] * 52
+            Q = Q_raw.reindex(tickers).fillna(0)  # Align Q with tickers and fill missing values with 0
             Q = Q.clip(lower=-0.5, upper=1)  # Don't allow for overly extreme predictions
 
             omega = np.diag(np.diag(tau * cov_matrix))
@@ -459,6 +460,6 @@ def run_backtest_calculation():
             "var_99": float(historical_var_99)
         },
         "attribution": {
-            ticker: float(val) for ticker, val in vol_contribution_percent.items()
+            ticker: float(val) for ticker, val in vol_contribution_percent.items() if val > 0.001  
         }
     }
