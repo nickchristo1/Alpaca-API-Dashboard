@@ -72,7 +72,7 @@
         <h3>Strategy Backtest Overview</h3>
         <p>All metrics are annualized based on a 252 trading day period.</p>
     </div>
-    
+
     <!-- Row 1 -->
     <div class="top-metrics">
         <div class="card"><div class="label">Return</div><div class="value" id="bt-ret">-</div></div>
@@ -126,13 +126,20 @@ async function loadBacktest() {
 
     // Heatmap
     const heatDiv = document.getElementById("heatmap");
+    const values = Object.values(data.attribution);
+
+    // 2. Find the highest value to act as our "1.0" intensity
+    const maxVal = Math.max(...values, 0.0001); 
+
     heatDiv.innerHTML = Object.entries(data.attribution).map(([ticker, val]) => {
-        return `<div class="heatmap-cell" style="background: rgba(255, 92, 92, ${Math.min(val*50, 1)});">
+        const intensity = val / maxVal;
+        
+        return `<div class="heatmap-cell" style="background: rgba(255, 92, 92, ${intensity.toFixed(2)});">
                     <div style="font-size: 11px;">${ticker}</div>
                     <div style="font-weight: bold;">${(val * 100).toFixed(2)}%</div>
                 </div>`;
     }).join('');
-}
+    }
 
 let equityChart = null;
 async function loadData() {
