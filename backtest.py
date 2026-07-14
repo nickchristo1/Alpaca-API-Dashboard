@@ -351,6 +351,7 @@ def run_backtest_calculation():
     # Loop through the backtest period, rebalancing weekly
     for current_date, day_returns in daily_returns.iterrows():
         current_week = current_date.isocalendar()[1]  # Get the week number of the current date
+        time.sleep(0.1)
         # If new week or beginning of the backtest, rebalance the portfolio
         if optimal_weights is None or current_week != previous_week:
             
