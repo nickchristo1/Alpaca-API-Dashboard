@@ -406,8 +406,6 @@ def run_backtest_calculation():
             term1 = np.linalg.inv(inv_tau_sigma + P.T @ np.linalg.inv(omega) @ P)
             term2 = (inv_tau_sigma @ pi) + (P.T @ np.linalg.inv(omega) @ Q)
             posterior_returns = term1 @ term2  # Posterior expected returns from Black-Litterman
-            print(posterior_returns)
-            print(cov_mat)
 
             # Calculate the optimal weights using the posterior returns and covariance matrix
             optimal_weights = np.array(eff_front_no_shorts(posterior_returns, cov_mat))
