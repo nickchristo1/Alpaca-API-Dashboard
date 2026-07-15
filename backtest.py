@@ -293,7 +293,7 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
     def objective(w):
         ret = w.T @ posterior_returns
         risk = w.T @ cov_annual @ w
-        return -(ret - (lmbda * risk))
+        return -((ret - (lmbda * risk)) * 1000)
 
     constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1})  # Sum of weights = 1)
     bounds = tuple((0, .15) for _ in range(n))
