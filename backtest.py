@@ -349,12 +349,14 @@ def run_backtest_calculation():
     market_weights = caps_series / caps_series.sum()
 
     # Loop through the backtest period, rebalancing weekly
+    i=0
     for current_date, day_returns in daily_returns.iterrows():
         current_week = current_date.isocalendar()[1]  # Get the week number of the current date
-        time.sleep(0.1)
         # If new week or beginning of the backtest, rebalance the portfolio
         if optimal_weights is None or current_week != previous_week:
-            
+            print(f"Rebalancing: Iteration {i}, Date: {current_date.date()}")
+            i += 1
+
             # Find necessary quantities
             window_data = data.loc[:current_date].tail(700)  # Use the last 700 trading days for training
             log_returns = np.log(window_data / window_data.shift(1)).dropna()
