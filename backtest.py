@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from sklearn.linear_model import Ridge
 from config import tickers
 from datetime import date
+import cvxpy as cp
 
 
 # 0.) Functions needed for replication
