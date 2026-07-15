@@ -8,3 +8,4 @@ python-dotenv
 scipy
 scikit-learn
 cvxpy
+plotly

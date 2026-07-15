@@ -2,6 +2,7 @@
 <html>
 <head>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekly Auto-Rebalance MVO Portfolio Dashboard</title>
 
@@ -90,6 +91,12 @@
         <div class="label">Risk Attribution Heatmap</div>
         <div id="heatmap" class="heatmap-grid"></div>
     </div>
+
+    <!-- Asset Correlation Matrix -->
+    <div class="card">
+        <div class="label">Asset Correlation Matrix</div>
+        <div id="corr-matrix-div"></div>
+    </div>
 </div>
 
 <div id="updated">Last updated: --</div>
@@ -139,7 +146,17 @@ async function loadBacktest() {
                     <div style="font-weight: bold;">${(val * 100).toFixed(2)}%</div>
                 </div>`;
     }).join('');
+
+    if (data.correlation) {
+        // Plotly handles the rendering natively using the dict passed from Python
+        Plotly.newPlot(
+            'corr-matrix-div', 
+            data.correlation.data, 
+            data.correlation.layout, 
+            {responsive: true} // Ensures it resizes for mobile
+        );
     }
+}
 
 let equityChart = null;
 async function loadData() {

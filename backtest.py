@@ -11,6 +11,9 @@ from sklearn.linear_model import Ridge
 from config import tickers
 from datetime import date
 import cvxpy as cp
+from alpaca.trading.client import TradingClient
+import plotly.express as px
+import json
 
 
 # 0.) Functions needed for replication
@@ -18,6 +21,7 @@ import cvxpy as cp
 load_dotenv()  # Load keys
 api_key = os.getenv("ALPACA_API_KEY")
 secret_key = os.getenv("ALPACA_SECRET_KEY")
+trading_client = TradingClient(api_key, secret_key, paper=False)
 DATA_FILE = "market_data.csv"
 
 
@@ -460,6 +464,32 @@ def run_backtest_calculation():
     vol_contribution = portfolio_weights * marginal_contribution
     vol_contribution_percent = vol_contribution / portfolio_vol_annualized
 
+    # Get the correlations between the assets in the portfolio
+    positions = trading_client.get_all_positions()
+    portfolio_positions = []
+    for position in positions:
+        portfolio_positions.append(position.symbol) 
+
+    correlations = daily_returns[portfolio_positions].corr()
+
+    # Create the heatmap
+    fig = px.imshow(
+        correlations, 
+        text_auto=".2f", 
+        aspect="auto", 
+        color_continuous_scale='RdBu_r', # Red-Blue scale is standard for corr
+        range_color=[-1, 1]
+    )
+
+    # Clean up the layout for your dashboard's theme
+    fig.update_layout(
+        template="plotly_dark",
+        margin=dict(l=20, r=20, t=20, b=20)
+    )
+
+
+    # 3.) Return the metrics and risk attribution
+    # -------------------------------------------
     return {
         "metrics": {
             "return": float(strategy_return),
@@ -471,5 +501,6 @@ def run_backtest_calculation():
         },
         "attribution": {
             ticker: float(val) for ticker, val in vol_contribution_percent.items() if val > 0.001  
-        }
+        },
+        "correlation": fig.to_dict()
     }
