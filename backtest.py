@@ -502,5 +502,5 @@ def run_backtest_calculation():
         "attribution": {
             ticker: float(val) for ticker, val in vol_contribution_percent.items() if val > 0.001  
         },
-        "correlation": json.loads(fig.to_dict())
+        "correlation": json.loads(fig.to_json())
     }
