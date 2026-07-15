@@ -302,7 +302,7 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
         init_guess = np.ones(n) / n
 
         res = minimize(objective, init_guess, method='SLSQP',
-                    bounds=bounds, constraints=constraints)
+                    bounds=bounds, constraints=constraints, options={'maxiter': 500, 'ftol': 1e-4})
 
         if res.success:
             return res.x
