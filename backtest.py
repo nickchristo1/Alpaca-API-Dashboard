@@ -5,7 +5,6 @@ import os
 import yfinance as yf
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
 from scipy.stats import spearmanr
 from dotenv import load_dotenv
 from sklearn.linear_model import Ridge
@@ -289,26 +288,33 @@ def eff_front_no_shorts(posterior_returns, cov_matrix, lmbda=3.0):
     n = len(posterior_returns)
     cov_annual = cov_matrix * 252
 
-    # Objective Function: Minimize Portfolio Variance
-    def objective(w):
-        ret = w.T @ posterior_returns
-        risk = w.T @ cov_annual @ w
-        return -((ret - (lmbda * risk)) * 1000)
+    # Define the optimization variables
+    w = cp.Variable(n)
+    
+    # Define the objective: Maximize (Return - lambda * Risk)
+    expected_return = posterior_returns.values @ w if isinstance(posterior_returns, pd.Series) else posterior_returns @ w
+    risk = cp.quad_form(w, cov_annual)
+    objective = cp.Maximize(expected_return - lmbda * risk)
 
-    constraints = ({'type': 'eq', 'fun': lambda w: np.sum(w) - 1})  # Sum of weights = 1)
-    bounds = tuple((0, .15) for _ in range(n))
+    # Define constraints: Fully invested, no shorts, max 15% per asset
+    constraints = [
+        cp.sum(w) == 1,
+        w >= 0,
+        w <= 0.15
+    ]
 
-    for i in range(10):
-        init_guess = np.ones(n) / n
-
-        res = minimize(objective, init_guess, method='SLSQP',
-                    bounds=bounds, constraints=constraints, options={'maxiter': 500, 'ftol': 1e-4})
-
-        if res.success:
-            return res.x
-
-    # If the loop finishes without success, raise the error
-    raise ValueError(f"Optimization failed after 10 attempts.")
+    # Solve the problem
+    prob = cp.Problem(objective, constraints)
+    
+    try:
+        # OSQP is highly robust for quadratic problems
+        prob.solve(solver=cp.OSQP) 
+        if w.value is None:
+            raise ValueError("CVXPY could not find an optimal solution.")
+        return w.value
+    except Exception as e:
+        print(f"Optimization fallback triggered: {e}")
+        return None
 
 
 # 1.) Perform the Backtest
