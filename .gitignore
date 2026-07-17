@@ -12,3 +12,4 @@ pyvenv.cfg
 .env
 portfolio_history.py
 test.py
+query_data.py
